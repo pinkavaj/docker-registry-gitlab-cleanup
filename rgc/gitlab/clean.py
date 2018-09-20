@@ -29,10 +29,10 @@ class GitlabClean( object ):
         print( '-> loading all projects..' )
         for project in gitlab.Gitlab( self.gitlab_url, self.token ).projects.list( all=True ):
             if project.container_registry_enabled:
-                subimages = [project.path_with_namespace.lower()]
-
+                subimages = []
                 for image in images:
-                    if re.match('^' + project.path_with_namespace.lower() + '/', image):
+                    if project.path_with_namespace.lower() == image or \
+                            re.match('^' + project.path_with_namespace.lower() + '/', image):
                         subimages.append(image)
 
                 for subimage in subimages:
