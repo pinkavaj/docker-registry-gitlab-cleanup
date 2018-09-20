@@ -38,13 +38,7 @@ class GitlabClean( object ):
                 for subimage in subimages:
                     print( '-> processing ' + subimage )
                     query_tags = registry.query( self.registry_url + '/v2/' + subimage + '/tags/list', 'get' )
-
-                    try:
-                        query_tags['tags']
-                    except KeyError:
-                        tags = []
-                    else:
-                        tags = query_tags['tags']
+                    tags = query_tags.get('tags', [])
 
                     if tags != None and len( tags ) > 0:
                         print( '--> ' + str( len( tags ) ) + ' tag(s) found' )
