@@ -32,7 +32,7 @@ class GitlabClean( object ):
                 subimages = []
                 for image in images:
                     if project.path_with_namespace.lower() == image or \
-                            re.match('^' + project.path_with_namespace.lower() + '/', image):
+                            image.startswith(project.path_with_namespace.lower() + '/'):
                         subimages.append(image)
 
                 for subimage in subimages:
