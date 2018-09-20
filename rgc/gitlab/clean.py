@@ -40,7 +40,7 @@ class GitlabClean( object ):
                     query_tags = registry.query( self.registry_url + '/v2/' + subimage + '/tags/list', 'get' )
                     tags = query_tags.get('tags', [])
 
-                    if tags != None and len( tags ) > 0:
+                    if tags:
                         print( '--> ' + str( len( tags ) ) + ' tag(s) found' )
                         for tag in tags:
                             if not re.match( self.exclude, tag ):
