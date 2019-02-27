@@ -40,6 +40,9 @@ class GitlabClean(object):
                 )
                 for tag in self.get_list(url):
                     tag_name = tag['name']
+                    if re.match(self.exclude, tag_name):
+                        print(colored(f'keeping (excluded) {tag_name}', 'green'))
+                        continue
                     url = '%s/projects/%s/registry/repositories/%d/tags/%s' % (
                         self.api_url, project_path_q, registry_id, tag_name
                     )
@@ -80,9 +83,6 @@ class GitlabClean(object):
         created_at_time = datetime.fromisoformat(created_at)
         if created_at_time.timestamp() > self.retention_limit:
             print(colored(f'keeping (not expired) {tag_name}', 'green'))
-            return
-        if re.match(self.exclude, tag_name):
-            print(colored(f'keeping (excluded) {tag_name}', 'green'))
             return
         print(colored(f'removing {tag_name} (expired)', 'red'))
         url = '%s/projects/%s/registry/repositories/%d/tags/%s' % (
