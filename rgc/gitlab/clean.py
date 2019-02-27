@@ -19,7 +19,7 @@ class GitlabClean(object):
             datetime.utcnow().timestamp() - int(retention) * 24 * 60 * 60
 
     def clean_projects(self):
-        gl = gitlab.Gitlab(self.gitlab_url, self.token)
+        gl = gitlab.Gitlab(self.gitlab_url, self.token, per_page=100)
         print('Loading all projects ...')
         for project in gl.projects.list(all=True):
             project_path = project.path_with_namespace
@@ -32,19 +32,13 @@ class GitlabClean(object):
             url = '%s/projects/%s/registry/repositories' % (
                 self.api_url, project_path_q
             )
-            res = requests.get(url, headers=self.auth_headers)
-            if res.status_code != 200:
-                res.raise_for_status()
-            for registry in res.json():
+            for registry in self.get_list(url):
                 print('## registry %s' % registry['name'])
                 registry_id = registry['id']
                 url = '%s/projects/%s/registry/repositories/%d/tags' % (
                     self.api_url, project_path_q, registry_id
                 )
-                res = requests.get(url, headers=self.auth_headers)
-                if res.status_code != 200:
-                    res.raise_for_status()
-                for tag in res.json():
+                for tag in self.get_list(url):
                     tag_name = tag['name']
                     url = '%s/projects/%s/registry/repositories/%d/tags/%s' % (
                         self.api_url, project_path_q, registry_id, tag_name
@@ -63,6 +57,24 @@ class GitlabClean(object):
                     self.process_tag(
                         project_path_q, registry_id, tag_name, created_at
                     )
+
+    def get_list(self, url):
+        params = {'per_page': 100}
+        while url:
+            res = requests.get(url, headers=self.auth_headers, params=params)
+            links = res.headers['Link'].split(',')
+            url = None
+            for link in links:
+                link = link.strip()
+                url_next, rel = link.split(';')
+                if rel.strip() != 'rel="next"':
+                    continue
+                url = url_next.strip()[1:][:-1]
+                break
+            if res.status_code != 200:
+                res.raise_for_status()
+            for item in res.json():
+                yield item
 
     def process_tag(self, project_path_q, registry_id, tag_name, created_at):
         created_at_time = datetime.fromisoformat(created_at)
