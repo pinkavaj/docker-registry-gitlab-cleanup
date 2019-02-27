@@ -1,69 +1,81 @@
 import gitlab
 import json
 import re
-import rgc.registry
+import requests
+from urllib.parse import quote
 from datetime import datetime
-from rgc.registry.api import RegistryApi
 from termcolor import colored
 
-class GitlabClean( object ):
-    def __init__( self, user, token, gitlab_url, registry_url, retention, exclude ):
-       self.user         = user
-       self.token        = token
-       self.gitlab_url   = gitlab_url
-       self.registry_url = registry_url
-       self.retention    = retention
-       self.exclude      = exclude
 
-    def clean_projects( self ):
-        registry = RegistryApi(
-            user  = self.user,
-            token = self.token
-        )
+class GitlabClean(object):
+    def __init__(self, user, token, gitlab_url, retention, exclude):
+        self.user = user
+        self.token = token
+        self.auth_headers = {'PRIVATE-TOKEN': token}
+        self.gitlab_url = gitlab_url
+        self.exclude = exclude
+        self.api_url = '%s/api/v4' % gitlab_url
+        self.retention_limit = \
+            datetime.utcnow().timestamp() - int(retention) * 24 * 60 * 60
 
-        now = datetime.now()
-
-        print(' -> fetch registry catalog...')
-        images = registry.query( self.registry_url + '/v2/_catalog?n=9999', 'get' )["repositories"]
-
-        print( '-> loading all projects..' )
-        for project in gitlab.Gitlab( self.gitlab_url, self.token ).projects.list( all=True ):
+    def clean_projects(self):
+        gl = gitlab.Gitlab(self.gitlab_url, self.token)
+        print('Loading all projects ...')
+        for project in gl.projects.list(all=True):
+            project_path = project.path_with_namespace
+            project_path_q = quote(project_path, safe='')
             if not project.container_registry_enabled:
-                print( '-> skipping ' + project.path_with_namespace.lower() )
+                print(colored('skipping project ' + project_path, 'yellow'))
                 continue
+            print(colored('# project ' + project_path))
 
-            subimages = []
-            for image in images:
-                if project.path_with_namespace.lower() == image or \
-                        image.startswith(project.path_with_namespace.lower() + '/'):
-                    subimages.append(image)
-
-            for subimage in subimages:
-                print( '-> processing ' + subimage )
-                query_tags = registry.query( self.registry_url + '/v2/' + subimage + '/tags/list', 'get' )
-                tags = query_tags.get('tags', [])
-
-                if not tags:
-                    print( '--> no tags' )
-                    continue
-
-                print( '--> ' + str( len( tags ) ) + ' tag(s) found' )
-                for tag in tags:
-                    if re.match( self.exclude, tag ):
-                        print( colored( '--> keeping ' + tag + ' (excluded)', 'green' ) )
+            url = '%s/projects/%s/registry/repositories' % (
+                self.api_url, project_path_q
+            )
+            res = requests.get(url, headers=self.auth_headers)
+            if res.status_code != 200:
+                res.raise_for_status()
+            for registry in res.json():
+                print('## registry %s' % registry['name'])
+                registry_id = registry['id']
+                url = '%s/projects/%s/registry/repositories/%d/tags' % (
+                    self.api_url, project_path_q, registry_id
+                )
+                res = requests.get(url, headers=self.auth_headers)
+                if res.status_code != 200:
+                    res.raise_for_status()
+                for tag in res.json():
+                    tag_name = tag['name']
+                    url = '%s/projects/%s/registry/repositories/%d/tags/%s' % (
+                        self.api_url, project_path_q, registry_id, tag_name
+                    )
+                    res = requests.get(url, headers=self.auth_headers)
+                    if res.status_code == 404:
+                        print(
+                            colored(
+                                f'skipping (unaccesible) {tag_name}', 'yellow'
+                            )
+                        )
                         continue
+                    if res.status_code != 200:
+                        res.raise_for_status()
+                    created_at = res.json()['created_at']
+                    self.process_tag(
+                        project_path_q, registry_id, tag_name, created_at
+                    )
 
-                    # BUG: Sometimes the 'history' field is not available, usally works on next try
-                    tag_info = registry.query( self.registry_url + '/v2/' + subimage + '/manifests/' + tag, 'get' )
-                    if not 'history' in tag_info:
-                        print( colored( '--> couldn\'t get date info for ' + tag + ' (skipped)', 'yellow' ) )
-                        continue
-
-                    created_at = datetime.strptime( json.loads( tag_info['history'][0]['v1Compatibility'] )['created'][:-4], '%Y-%m-%dT%H:%M:%S.%f' )
-                    age = now - created_at
-                    if age.total_seconds() > ( int( self.retention ) * 60 * 60 * 24 ):
-                        print( colored( '--> removing ' + tag + ' (expired)', 'red' ) )
-                        digest = registry.query( self.registry_url + '/v2/' + subimage + '/manifests/' + tag, 'head' )['Docker-Content-Digest']
-                        registry.query( self.registry_url + '/v2/' + subimage + '/manifests/' + digest, 'delete' )
-                    else:
-                        print( colored( '--> keeping ' + tag + ' (not expired)', 'green' ) )
+    def process_tag(self, project_path_q, registry_id, tag_name, created_at):
+        created_at_time = datetime.fromisoformat(created_at)
+        if created_at_time.timestamp() > self.retention_limit:
+            print(colored(f'keeping (not expired) {tag_name}', 'green'))
+            return
+        if re.match(self.exclude, tag_name):
+            print(colored(f'keeping (excluded) {tag_name}', 'green'))
+            return
+        print(colored(f'removing {tag_name} (expired)', 'red'))
+        url = '%s/projects/%s/registry/repositories/%d/tags/%s' % (
+            self.api_url, project_path_q, registry_id, tag_name
+        )
+        res = requests.delete(url, headers=self.auth_headers)
+        if res.status_code != 200:
+            res.raise_for_status()
