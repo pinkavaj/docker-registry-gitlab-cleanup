@@ -1,15 +1,14 @@
 # docker-registry-gitlab-cleanup
 
-[![Docker Pulls](https://img.shields.io/docker/pulls/mvisonneau/docker-registry-gitlab-cleanup.svg)](https://hub.docker.com/r/mvisonneau/docker-registry-gitlab-cleanup/)
+[![Docker Pulls](https://img.shields.io/docker/pulls/mvisonneau/docker-registry-gitlab-cleanup.svg)](https://hub.docker.com/r/bandikut/docker-registry-gitlab-cleanup/)
 
 The goal of this tool is to be able to cleanup old image tags stored in a [GitLab](http://gitlab.org/) embedded [Docker Registry](https://docs.docker.com/registry/).
 
 # Prerequisites
 
-- GitLab version 10.2 or above
+- GitLab version 11.8 or above
 - Docker Registry version 2.3 or above
 - Have an administrator account onto the GitLab server
-- Be able to reach both GitLab and Docker registry endpoint APIs from the same location.
 - [Generate a token](https://docs.gitlab.com/ce/user/profile/personal_access_tokens.html) with `api` and `sudo` privileges
 
 # Usage
@@ -18,7 +17,7 @@ The goal of this tool is to be able to cleanup old image tags stored in a [GitLa
 
 ```bash
 docker run -it --rm \
-  mvisonneau/docker-registry-gitlab-cleanup rgc -h
+  bandikut/docker-registry-gitlab-cleanup rgc -h
 ```
 
 ## Cleanup registry
@@ -28,8 +27,7 @@ docker run -it --rm \
   -e RGC_USER=<username> \
   -e RGC_TOKEN=<token> \
   -e RGC_GITLAB_URL=https://gitlab.example.com \
-  -e RGC_REGISTRY_URL=https://registry.gitlab.example.com \
-  mvisonneau/docker-registry-gitlab-cleanup
+  bandikut/docker-registry-gitlab-cleanup
 ```
 
 You should then have something like this :
@@ -58,7 +56,7 @@ Even though it does actually clean the registry, it doesn't remove the blobs. Yo
 ## Develop / Test
 
 ```bash
-~$ git clone https://github.com/mvisonneau/docker-registry-gitlab-cleanup
+~$ git clone https://github.com/bandikut/docker-registry-gitlab-cleanup
 ~$ docker build -t <your_namespace>/docker-registry-gitlab-cleanup .
 ~$ docker run -it --rm <your_namespace>/docker-registry-gitlab-cleanup sh
 ~$ rgc
@@ -66,4 +64,4 @@ Even though it does actually clean the registry, it doesn't remove the blobs. Yo
 
 ## Contribute
 
-Contributions are more than welcome! Feel free to submit a [PR](https://github.com/mvisonneau/docker-registry-gitlab-cleanup/pulls).
+Contributions are more than welcome! Feel free to submit a [PR](https://github.com/bandikut/docker-registry-gitlab-cleanup/pulls).
