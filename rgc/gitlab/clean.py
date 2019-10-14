@@ -24,7 +24,7 @@ class GitlabClean(object):
         for project in gl.projects.list(all=True):
             project_path = project.path_with_namespace
             project_path_q = quote(project_path, safe='')
-            if not project.container_registry_enabled:
+            if not project.container_registry_enabled or project.archived:
                 print(colored('skipping project ' + project_path, 'yellow'))
                 continue
             print(colored('# project ' + project_path))
