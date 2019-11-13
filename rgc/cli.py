@@ -1,7 +1,7 @@
 import argparse
 import os
 import sys
-from rgc.gitlab.clean import GitlabClean
+from rgc.clean import GitlabClean
 
 
 def main():
